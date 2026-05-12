@@ -1240,6 +1240,17 @@ pub fn patterns() -> Vec<signatures::common::Signature> {
             description: signatures::hashes::MD5_DESCRIPTION.to_string(),
             extractor: None,
         },
+        // Broadcom ProgramStore firmware
+        signatures::common::Signature {
+            name: "program_store".to_string(),
+            short: false,
+            magic_offset: 0,
+            always_display: false,
+            magic: signatures::program_store::program_store_magic(),
+            parser: signatures::program_store::program_store_parser,
+            description: signatures::program_store::DESCRIPTION.to_string(),
+            extractor: Some(extractors::program_store::program_store_extractor()),
+        },
     ];
 
     binary_signatures

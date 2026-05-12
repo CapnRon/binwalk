@@ -173,6 +173,7 @@ pub mod mh01;
 pub mod pcap;
 pub mod pem;
 pub mod png;
+pub mod program_store;
 pub mod rar;
 pub mod riff;
 pub mod romfs;
