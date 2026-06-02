@@ -223,13 +223,9 @@ fn parse_tlv_element<'a>(data: &mut &'a [u8]) -> Option<Element<'a>> {
 
 fn split_off_variable_integer(data: &mut &[u8], element_type: u8) -> Option<usize> {
     let mut res = [0; 8];
-    match element_type & 0x3 {
-        0 => res[..1].copy_from_slice(data.split_off(..1)?),
-        1 => res[..2].copy_from_slice(data.split_off(..2)?),
-        2 => res[..4].copy_from_slice(data.split_off(..4)?),
-        3 => res[..8].copy_from_slice(data.split_off(..8)?),
-        _ => unreachable!(),
-    }
+
+    let len = 1 << (element_type & 0x3);
+    res[..len].copy_from_slice(data.split_off(..len)?);
 
     Some(usize::from_le_bytes(res))
 }
