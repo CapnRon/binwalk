@@ -96,6 +96,8 @@
 //! }
 //! ```
 
+pub mod dyn_endian;
+
 use log::error;
 use std::collections::HashMap;
 
@@ -110,6 +112,12 @@ compile_error!("compilation is only allowed for 64-bit targets");
 /// Error return value of structure parsers
 #[derive(Debug, Clone)]
 pub struct StructureError;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Endianness {
+    Little,
+    Big,
+}
 
 /// Function to parse basic C-style data structures.
 ///
