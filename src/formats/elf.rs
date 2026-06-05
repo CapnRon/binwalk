@@ -1,5 +1,5 @@
 use crate::signatures::{CONFIDENCE_MEDIUM, SignatureError, SignatureResult};
-use crate::structures::StructureError;
+use crate::structures::{Endianness, StructureError, dyn_endian};
 use std::collections::HashMap;
 use zerocopy::{FromBytes, Immutable, KnownLayout, Unaligned};
 
@@ -25,7 +25,7 @@ pub fn elf_parser(file_data: &[u8], offset: usize) -> Result<SignatureResult, Si
     // If the header is parsed successfully, consider it valid
     if let Ok(elf_header) = parse_elf_header(&file_data[offset..]) {
         result.description = format!(
-            "{}, {}-bit {}, {} for {}, {} endian",
+            "{}, {}-bit {}, {} for {}, {}",
             result.description,
             elf_header.class,
             elf_header.exe_type,
@@ -40,13 +40,13 @@ pub fn elf_parser(file_data: &[u8], offset: usize) -> Result<SignatureResult, Si
 }
 
 /// Struct to store some useful ELF info
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct ELFHeader {
     pub class: String,
     pub osabi: String,
     pub machine: String,
     pub exe_type: String,
-    pub endianness: String,
+    pub endianness: Endianness,
 }
 
 // https://en.wikipedia.org/wiki/Executable_and_Linkable_Format#ELF_header
@@ -65,9 +65,9 @@ struct ElfHeaderBytes {
 #[derive(FromBytes, KnownLayout, Unaligned, Immutable)]
 #[repr(C, packed)]
 struct ElfInfo {
-    elf_type: u16,
-    machine: u16,
-    version: u32,
+    elf_type: dyn_endian::U16,
+    machine: dyn_endian::U16,
+    version: dyn_endian::U32,
 }
 
 /// Partially parses an ELF header
@@ -81,7 +81,7 @@ pub fn parse_elf_header(elf_data: &[u8]) -> Result<ELFHeader, StructureError> {
 
     let elf_classes = HashMap::from([(1, 32), (2, 64)]);
 
-    let elf_endianness = HashMap::from([(1, "little"), (2, "big")]);
+    let elf_endianness = HashMap::from([(1, Endianness::Little), (2, Endianness::Big)]);
 
     let elf_osabi = HashMap::from([
         (0, "System-V (Unix)"),
@@ -334,19 +334,9 @@ pub fn parse_elf_header(elf_data: &[u8]) -> Result<ELFHeader, StructureError> {
             // so in the next lines we do some ugly endianness converting
             let elf_info = ElfInfo::ref_from_bytes(elf_info_raw).map_err(|_| StructureError)?;
 
-            let (elf_version, elf_type, elf_machine) = if *endianness == "big" {
-                (
-                    u32::from_be(elf_info.version),
-                    u16::from_be(elf_info.elf_type),
-                    u16::from_be(elf_info.machine),
-                )
-            } else {
-                (
-                    u32::from_le(elf_info.version),
-                    u16::from_le(elf_info.elf_type),
-                    u16::from_le(elf_info.machine),
-                )
-            };
+            let elf_version = elf_info.version.get(*endianness);
+            let elf_type = elf_info.elf_type.get(*endianness);
+            let elf_machine = elf_info.machine.get(*endianness);
 
             if elf_version != EXPECTED_VERSION {
                 return Err(StructureError);
@@ -363,7 +353,7 @@ pub fn parse_elf_header(elf_data: &[u8]) -> Result<ELFHeader, StructureError> {
                         .unwrap_or(&"Unknown")
                         .to_string(),
                     exe_type: elf_type_str.to_string(),
-                    endianness: endianness.to_string(),
+                    endianness: *endianness,
                 });
             }
         }

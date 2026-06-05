@@ -100,6 +100,7 @@ pub mod dyn_endian;
 
 use log::error;
 use std::collections::HashMap;
+use std::fmt;
 
 /*
  * Note that all values returned by the parse() function are of type usize; this is a concious decision.
@@ -117,6 +118,15 @@ pub struct StructureError;
 pub enum Endianness {
     Little,
     Big,
+}
+
+impl fmt::Display for Endianness {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Little => write!(f, "Little Endian"),
+            Self::Big => write!(f, "Big Endian"),
+        }
+    }
 }
 
 /// Function to parse basic C-style data structures.
