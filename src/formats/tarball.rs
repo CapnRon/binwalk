@@ -192,3 +192,81 @@ pub fn tarball_extractor() -> extractors::Extractor {
         ..Default::default()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::signatures::{CONFIDENCE_HIGH, CONFIDENCE_MEDIUM};
+
+    /// The shared test fixture: a deterministic POSIX (ustar) tar archive containing
+    /// three files (see tests/inputs/gen_tarball.sh). The `ustar` magic for the first
+    /// entry lives at TARBALL_MAGIC_OFFSET (257), i.e. the archive starts at offset 0.
+    const FIXTURE: &[u8] =
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/tarball.bin"));
+
+    #[test]
+    fn octal_parses_basic_values() {
+        assert_eq!(tarball_octal(b"33"), 27);
+        assert_eq!(tarball_octal(b"00000000644"), 0o644);
+        assert_eq!(tarball_octal(b""), 0);
+    }
+
+    #[test]
+    fn octal_stops_at_non_octal_terminator() {
+        // tar size/checksum fields are space- or NUL-terminated; parsing must stop there.
+        assert_eq!(tarball_octal(b"17 "), 0o17);
+        assert_eq!(tarball_octal(b"17\x00rest"), 0o17);
+        // A leading terminator yields zero.
+        assert_eq!(tarball_octal(b"\x0033"), 0);
+    }
+
+    #[test]
+    fn checksum_validates_real_header() {
+        let header = &FIXTURE[0..TARBALL_BLOCK_SIZE];
+        assert!(header_checksum_is_valid(header));
+    }
+
+    #[test]
+    fn checksum_rejects_corrupted_header() {
+        let mut header = FIXTURE[0..TARBALL_BLOCK_SIZE].to_vec();
+        // Flip a byte in the file name field (outside the checksum field), which must
+        // invalidate the stored checksum.
+        header[0] ^= 0xFF;
+        assert!(!header_checksum_is_valid(&header));
+    }
+
+    #[test]
+    fn entry_size_rounds_up_to_block_size() {
+        // First entry holds a 27-byte file: one header block + one (partial) data block.
+        let header = &FIXTURE[0..TARBALL_BLOCK_SIZE];
+        assert_eq!(tarball_entry_size(header).unwrap(), 2 * TARBALL_BLOCK_SIZE);
+    }
+
+    #[test]
+    fn entry_size_rejects_bad_magic() {
+        let zeros = [0u8; TARBALL_BLOCK_SIZE];
+        assert!(tarball_entry_size(&zeros).is_err());
+    }
+
+    #[test]
+    fn parser_detects_fixture_archive() {
+        let result = tarball_parser(FIXTURE, TARBALL_MAGIC_OFFSET).unwrap();
+
+        // Archive starts at the very beginning of the file.
+        assert_eq!(result.offset, 0);
+        // Reported size covers the three entries' header + data blocks (not the
+        // trailing end-of-archive zero padding): 1024 + 1024 + 1024 bytes.
+        assert_eq!(result.size, 6 * TARBALL_BLOCK_SIZE);
+        // Three valid headers found; below TARBALL_MIN_EXPECTED_HEADERS, so medium.
+        assert_eq!(result.confidence, CONFIDENCE_MEDIUM);
+        assert!(result.confidence < CONFIDENCE_HIGH);
+        assert!(result.description.contains("file count: 3"));
+    }
+
+    #[test]
+    fn parser_rejects_non_tarball_data() {
+        // A region with no valid tar header (all zeros) must not be reported as a tarball.
+        let zeros = [0u8; 2 * TARBALL_BLOCK_SIZE];
+        assert!(tarball_parser(&zeros, TARBALL_MAGIC_OFFSET).is_err());
+    }
+}
