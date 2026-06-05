@@ -169,39 +169,36 @@ pub fn parse_android_sparse_chunk_header(
     let (chunk_header, _) =
         AndroidSparseChunkHeaderBytes::ref_from_prefix(chunk_data).map_err(|_| StructureError)?;
     // Make sure the reserved field is zero
-    if chunk_header.reserved == 0 {
-        // Populate the structure values
-        chonker.block_count = chunk_header.output_block_count.get() as usize;
-        chonker.data_size = (chunk_header.total_size.get() as usize)
-            .checked_sub(chonker.header_size)
-            .ok_or(StructureError)?;
-        chonker.is_crc = chunk_header.chunk_type == CHUNK_TYPE_CRC;
-        chonker.is_raw = chunk_header.chunk_type == CHUNK_TYPE_RAW;
-        chonker.is_fill = chunk_header.chunk_type == CHUNK_TYPE_FILL;
-        chonker.is_dont_care = chunk_header.chunk_type == CHUNK_TYPE_DONT_CARE;
-
-        // The chunk type must be one of the known chunk types
-        if !(chonker.is_crc || chonker.is_raw || chonker.is_fill || chonker.is_dont_care) {
-            return Err(StructureError);
-        }
-
-        // Reject chunks whose declared payload doesn't match the spec for their
-        // type. In particular, a FILL chunk with data_size == 0 would cause the
-        // extractor to loop forever trying to fill a block with no data.
-        if chonker.is_fill && chonker.data_size != FILL_DATA_SIZE {
-            return Err(StructureError);
-        }
-        if chonker.is_dont_care && chonker.data_size != DONT_CARE_DATA_SIZE {
-            return Err(StructureError);
-        }
-        if chonker.is_crc && chonker.data_size != CRC_DATA_SIZE {
-            return Err(StructureError);
-        }
-
-        return Ok(chonker);
+    if chunk_header.reserved != 0 {
+        return Err(StructureError);
     }
 
-    Err(StructureError)
+    // Populate the structure values
+    chonker.block_count = chunk_header.output_block_count.get() as usize;
+    chonker.data_size = (chunk_header.total_size.get() as usize)
+        .checked_sub(chonker.header_size)
+        .ok_or(StructureError)?;
+    chonker.is_crc = chunk_header.chunk_type == CHUNK_TYPE_CRC;
+    chonker.is_raw = chunk_header.chunk_type == CHUNK_TYPE_RAW;
+    chonker.is_fill = chunk_header.chunk_type == CHUNK_TYPE_FILL;
+    chonker.is_dont_care = chunk_header.chunk_type == CHUNK_TYPE_DONT_CARE;
+
+    // The chunk type must be one of the known chunk types
+    if !(chonker.is_crc || chonker.is_raw || chonker.is_fill || chonker.is_dont_care) {
+        return Err(StructureError);
+    }
+
+    // Reject chunks whose declared payload doesn't match the spec for their
+    // type. In particular, a FILL chunk with data_size == 0 would cause the
+    // extractor to loop forever trying to fill a block with no data.
+    if (chonker.is_fill && chonker.data_size != FILL_DATA_SIZE)
+        || (chonker.is_dont_care && chonker.data_size != DONT_CARE_DATA_SIZE)
+        || (chonker.is_crc && chonker.data_size != CRC_DATA_SIZE)
+    {
+        return Err(StructureError);
+    }
+
+    Ok(chonker)
 }
 
 /// Defines the internal extractor function for extracting Android Sparse files
