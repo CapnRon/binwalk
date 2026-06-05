@@ -30,7 +30,6 @@ DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install \
     libfontconfig1-dev \
     liblzma-dev \
     libssl-dev \
-    7zip-standalone \
     cpio \
     device-tree-compiler
 

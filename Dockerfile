@@ -109,7 +109,6 @@ RUN --mount=from=ghcr.io/astral-sh/uv:latest,source=/uv,target=/bin/uv \
     libssl-dev \
     libfontconfig1-dev \
     libpython3-dev \
-    7zip-standalone \
     cpio \
     device-tree-compiler \
     clang \
