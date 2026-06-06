@@ -2,7 +2,6 @@ use crate::common::epoch_to_string;
 use crate::extractors;
 use crate::signatures::{CONFIDENCE_HIGH, SignatureError, SignatureResult};
 use crate::structures::{Endianness, StructureError, dyn_endian};
-use std::collections::HashMap;
 use zerocopy::{FromBytes, Immutable, KnownLayout, Unaligned};
 
 /// Human readable description
@@ -23,17 +22,7 @@ pub fn squashfs_magic() -> Vec<Vec<u8>> {
 
 /// Responsible for parsing and validating a suspected SquashFS image header
 pub fn squashfs_parser(file_data: &[u8], offset: usize) -> Result<SignatureResult, SignatureError> {
-    const SQUASHFSV4: u16 = 4;
-
-    let squashfs_compression_types = HashMap::from([
-        (0, "unknown"),
-        (1, "gzip"),
-        (2, "lzma"),
-        (3, "lzo"),
-        (4, "xz"),
-        (5, "lz4"),
-        (6, "zstd"),
-    ]);
+    const SQUASHFS_V4: u16 = 4;
 
     let mut result = SignatureResult {
         size: 0,
@@ -85,15 +74,12 @@ pub fn squashfs_parser(file_data: &[u8], offset: usize) -> Result<SignatureResul
                 let create_date = epoch_to_string(squashfs_header.timestamp);
 
                 // Make sure the compression type is supported
-                if let Some(compression_type) =
-                    squashfs_compression_types.get(&squashfs_header.compression)
+                if let Some(compression_type) = parse_compression_type(squashfs_header.compression)
                 {
-                    let compression_type_str = compression_type.to_string();
-
                     // Select the appropriate extractor to use
                     if squashfs_header.endianness == Endianness::Little {
                         result.preferred_extractor = Some(squashfs_le_extractor());
-                    } else if squashfs_header.major_version == SQUASHFSV4 {
+                    } else if squashfs_header.major_version == SQUASHFS_V4 {
                         result.preferred_extractor = Some(squashfs_v4_be_extractor());
                     } else {
                         result.preferred_extractor = Some(squashfs_be_extractor());
@@ -106,7 +92,7 @@ pub fn squashfs_parser(file_data: &[u8], offset: usize) -> Result<SignatureResul
                         squashfs_header.endianness,
                         squashfs_header.major_version,
                         squashfs_header.minor_version,
-                        compression_type_str,
+                        compression_type,
                         squashfs_header.inode_count,
                         squashfs_header.block_size,
                         squashfs_header.image_size,
@@ -448,4 +434,17 @@ pub fn squashfs_v4_be_extractor() -> extractors::Extractor {
         exit_codes: vec![0, 2],
         ..Default::default()
     }
+}
+
+const fn parse_compression_type(compreession_type: u16) -> Option<&'static str> {
+    Some(match compreession_type {
+        0 => "unknown",
+        1 => "gzip",
+        2 => "lzma",
+        3 => "lzo",
+        4 => "xz",
+        5 => "lz4",
+        6 => "zstd",
+        _ => return None,
+    })
 }
