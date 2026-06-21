@@ -90,6 +90,9 @@ pub fn parse_android_sparse_header(
     // Blocks must be aligned on a 4-byte boundary
     const BLOCK_ALIGNMENT: u32 = 4;
 
+    // Reject block sizes larger than 1 MiB to prevent resource exhaustion
+    const MAX_BLOCK_SIZE: u32 = 1024 * 1024;
+
     // Expected value for the reported chunk header size
     const CHUNK_HEADER_SIZE: u16 = 12;
 
@@ -100,11 +103,13 @@ pub fn parse_android_sparse_header(
         AndroidSparseHeaderBytes::ref_from_prefix(sparse_data).map_err(|_| StructureError)?;
 
     // Sanity check header values
+    let block_size = header.block_size.get();
     if header.major_version.get() == MAJOR_VERSION
         && header.minor_version.get() == MINOR_VERSION
         && header.header_size.get() as usize == expected_header_size
         && header.chunk_header_size.get() == CHUNK_HEADER_SIZE
-        && header.block_size.get().is_multiple_of(BLOCK_ALIGNMENT)
+        && block_size.is_multiple_of(BLOCK_ALIGNMENT)
+        && block_size <= MAX_BLOCK_SIZE
     {
         return Ok(AndroidSparseHeader {
             major_version: header.major_version.get(),

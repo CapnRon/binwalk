@@ -381,6 +381,17 @@ pub fn patterns() -> Vec<signatures::Signature> {
             description: formats::yaffs::DESCRIPTION.to_string(),
             extractor: Some(formats::yaffs::yaffs2_extractor()),
         },
+        // jzlzma
+        signatures::Signature {
+            name: "jzlzma".to_string(),
+            short: false,
+            magic_offset: 0,
+            always_display: false,
+            magic: formats::jzlzma::jzlzma_magic(),
+            parser: formats::jzlzma::jzlzma_parser,
+            description: formats::jzlzma::DESCRIPTION.to_string(),
+            extractor: Some(formats::jzlzma::jzlzma_extractor()),
+        },
         // lz4
         signatures::Signature {
             name: "lz4".to_string(),

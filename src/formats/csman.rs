@@ -2,6 +2,9 @@ use crate::extractors::{Chroot, ExtractionResult, Extractor, ExtractorType};
 use crate::signatures::{CONFIDENCE_HIGH, SignatureError, SignatureResult};
 use crate::structures::{Endianness, StructureError, dyn_endian};
 use miniz_oxide::inflate;
+
+/// Maximum allowed decompressed size (64 MiB) to prevent resource exhaustion
+const MAX_DECOMPRESSED_SIZE: usize = 64 * 1024 * 1024;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::path::Path;
@@ -75,6 +78,12 @@ pub fn parse_csman_header(csman_data: &[u8]) -> Result<(CSManHeader, &[u8]), Str
 
     let compressed_size = csman_header.compressed_size.get(endianness) as usize;
     let decompressed_size = csman_header.decompressed_size.get(endianness) as usize;
+
+    // Reject oversized decompressed sizes to prevent resource exhaustion
+    if decompressed_size > MAX_DECOMPRESSED_SIZE {
+        return Err(StructureError);
+    }
+
     let compressed = compressed_size != decompressed_size;
 
     let payload = rest.get(..compressed_size).ok_or(StructureError)?;

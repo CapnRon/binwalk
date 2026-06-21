@@ -323,16 +323,12 @@ pub fn extract_uimage(
             result.success = true;
             result.size = Some(uimage_header.header_size);
 
-            // Check the data CRC
-            let data_crc_valid: bool = crc32(image_data) == uimage_header.data_checksum;
+            // Include both header and data size in reported size, even if the data CRC is
+            // invalid; the raw data can still be carved for analysis
+            result.size = Some(result.size.unwrap() + uimage_header.data_size);
 
-            // If the data CRC is valid, include the size of the data in the reported size
-            if data_crc_valid {
-                result.size = Some(result.size.unwrap() + uimage_header.data_size);
-            }
-
-            // If extraction was requested and the data CRC is valid, carve the uImage data out to a file
-            if data_crc_valid && let Some(output_directory) = output_directory {
+            // If extraction was requested, carve the uImage data out to a file
+            if let Some(output_directory) = output_directory {
                 let chroot = Chroot::new(output_directory);
                 let file_base_name = if uimage_header.name.is_empty() {
                     DEFAULT_OUTPUT_FILE_NAME.to_string()
